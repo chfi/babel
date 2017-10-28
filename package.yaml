@@ -1,0 +1,65 @@
+name: babel
+version: '0.1.0.0'
+category: Web
+author: Christian Fischer
+maintainer: christian@chfi.se
+copyright: 2017 Christian Fischer
+license: BSD3
+github: chfi/babel
+
+extra-source-files:
+- README.md
+
+default-extensions:
+- OverloadedStrings
+- NoImplicitPrelude
+- DeriveFunctor
+- GeneralizedNewtypeDeriving
+- InstanceSigs
+- RankNTypes
+
+dependencies:
+- protolude >=0.1.6 && <0.2
+
+library:
+  source-dirs: src
+  ghc-options: -Wall
+  exposed-modules:
+  - Babel
+  dependencies:
+  - base >=4.7 && <5
+  - lens
+  - comonad
+  - gl
+  - GLFW-b
+  - JuicyPixels
+  - linear
+  - random
+  - hashable
+
+executables:
+  babel-exe:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - babel
+    - comonad
+
+tests:
+  babel-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - babel
