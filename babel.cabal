@@ -29,21 +29,22 @@ library
   exposed-modules:
       Babel
   other-modules:
-      Babel.Book
       Babel.Library
       Babel.Prelude
       Paths_babel
   build-depends:
       protolude >=0.1.6 && <0.2
+    , comonad
+    , adjunctions
+    , gl
     , base >=4.7 && <5
     , lens
-    , comonad
-    , gl
-    , GLFW-b
     , JuicyPixels
     , linear
     , random
     , hashable
+    , reflection
+    , distributive
   default-language: Haskell2010
   default-extensions: OverloadedStrings NoImplicitPrelude DeriveFunctor GeneralizedNewtypeDeriving InstanceSigs RankNTypes
 
@@ -54,9 +55,12 @@ executable babel-exe
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       protolude >=0.1.6 && <0.2
+    , comonad
+    , adjunctions
+    , gl
     , base
     , babel
-    , comonad
+    , text
   default-language: Haskell2010
   default-extensions: OverloadedStrings NoImplicitPrelude DeriveFunctor GeneralizedNewtypeDeriving InstanceSigs RankNTypes
 
@@ -67,6 +71,9 @@ test-suite babel-test
   main-is: Spec.hs
   build-depends:
       protolude >=0.1.6 && <0.2
+    , comonad
+    , adjunctions
+    , gl
     , base
     , babel
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N

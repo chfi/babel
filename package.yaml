@@ -20,6 +20,10 @@ default-extensions:
 
 dependencies:
 - protolude >=0.1.6 && <0.2
+- comonad
+- adjunctions
+# - OpenGLRaw
+- gl
 
 library:
   source-dirs: src
@@ -29,13 +33,14 @@ library:
   dependencies:
   - base >=4.7 && <5
   - lens
-  - comonad
-  - gl
-  - GLFW-b
+  # - gl
+  # - GLFW-b
   - JuicyPixels
   - linear
   - random
   - hashable
+  - reflection
+  - distributive
 
 executables:
   babel-exe:
@@ -49,7 +54,7 @@ executables:
     dependencies:
     - base
     - babel
-    - comonad
+    - text
 
 tests:
   babel-test:

@@ -2,101 +2,114 @@
 Module      : Babel.Library
 Description : Abstract representation of the infinite Library of Babel
 -}
+
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE TypeFamilies          #-}
+
 module Babel.Library where
 
-import Babel.Prelude
+import Babel.Prelude hiding (Rep)
 
 import Control.Comonad.Store
 
+import Data.Proxy
+import Data.Reflection
+
+import Data.Distributive
+import Data.Functor.Rep
+import Data.Functor.Adjunction
+
 import Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.List.NonEmpty as NE
 import System.Random
+
+import Unsafe (unsafeIndex)
 
 -- | A Library consists of a coordinate system, an alphabet,
 -- | and a producer of containers of that alphabet;
 -- | the alphabet is provided as a list of characters.
 
-newtype Library coord room a =
-  Library { getRoom :: Store coord (room a) } deriving (Functor)
+newtype Library s a = Library (s -> a) deriving (Functor)
+
+-- instance Reifies
+
+-- data Coord a = Coord { x :: Int
+--                      , y :: Int
+--                      , shelf :: Int
+--                      , volume :: Int
+--                      , book :: a
+--                      } deriving (Eq, Ord, Show, Functor)
+
+data Coord a = Coord Int a deriving (Eq, Ord, Show, Functor)
+
+
+data LibIndex s a = LibIndex s a deriving (Functor)
+
+instance Distributive (Library s) where
+  distribute :: Functor f => f (Library s a) -> Library s (f a)
+  distribute fs = Library $ \s -> fmap (\(Library f) -> f s) fs
+
+instance Representable (Library s) where
+  type Rep (Library s) = s
+
+  index :: Library s a -> Rep (Library s) -> a
+  index (Library f) s = f s
+
+  tabulate :: (s -> a) -> Library s a
+  tabulate f = Library f
+
+
+instance Adjunction (LibIndex s) (Library s) where
+  -- `unit` fills the Library with a constant value
+  -- tagged by its position in the library
+  unit :: a -> Library s (LibIndex s a)
+  unit a = Library $ \s -> LibIndex s a
+
+  -- `counit` takes a Library indexed by coordinates `s`, and a coordinate,
+  -- and extracts the appropriate item
+  counit :: LibIndex s (Library s a) -> a
+  counit (LibIndex s (Library f)) = f s
+
+
+  -- Given a function that transforms an item tagged with a coordinate into some `b`,
+  -- the left adjunction returns a function that takes untagged items and returns
+  -- a way to index into entries of `b`
+  leftAdjunct :: (LibIndex s a -> b) -> a -> Library s b
+  leftAdjunct f a = Library $ \s -> f (LibIndex s a)
+
+  -- Given a function that produces a library (i.e. a way to produce entries!)
+  -- the right adjunction returns a function from coordinates to entries;
+  -- i.e. indexes into the library
+  rightAdjunct :: (a -> Library s b) -> LibIndex s a -> b
+  rightAdjunct f (LibIndex s a) = let (Library sb) = f a
+                                in sb s
+
+
+-- we can create a list of books simply using Int
+
+type LibIndexInt = LibIndex Int
+type LibraryInt = Library Int
 
 
 {-
-
-This is overcomplicated -- or overly specific.
-the Library is really just an index into books.
-
-The rooms don't matter; they're just small trees. They can also be indexed into.
-
-newtype Li
-
+to create a library we need an indexing function.
+to create something a bit interesting, this function
+needs to produce random books;
+we need a type Int -> randomGen
 -}
 
-withLibrary :: (Store c (f a) -> Store d (g b)) -> Library c f a -> Library d g b
-withLibrary f (Library s) = Library $ f s
 
+-- Given a list of possible outputs,
+-- produces an infinite stream of elements from that list, randomly chosen
+-- based on the provided random generator
+randomStream :: (RandomGen g) => g -> NonEmpty a -> NonEmpty a
+randomStream g as = NE.unfold next' g
+  where l = length as - 1
+        next' gen = let (i, gen') = randomR (0, l) gen
+                    in (NE.toList as `unsafeIndex` i, Just gen')
 
--- to create a library we need:
---   An alphabet to create books from,
---   A coordinate system,
---   A type of our rooms (containers of books),
---   An indexing from coordinates to rooms, which uses the alphabet
-mkLibrary :: (coord -> room a)
-           -> coord
-           -> Library coord room a
-mkLibrary f = Library . store f
-
--- 2D library of babel
-babelLibrary2D :: Library (Int, Int) QRoom Char
-babelLibrary2D = mkLibrary f (0,0)
-  where f (x, y) = genRoom babelAlphabet $ mkStdGen $ x `mod` y
-
-
-newtype Alphabet a = Alphabet a deriving (Eq, Ord, Functor, Show)
-
--- In the book, the alphabet consists of "22 letters, the period, the comma, and the space"
-babelAlphabet :: Alphabet [Char]
-babelAlphabet = Alphabet $ ['A'..'V'] <> "., "
-
-alphaStream :: (RandomGen g, Random a, Ord a)=>  g -> Alphabet [a] -> NonEmpty a
-alphaStream g (Alphabet as) = head' :| tail'
-  where (l, r)      = (minimum as, maximum as)
-        (head', g') = randomR (l, r) g
-        tail'       = randomRs (l, r) g'
-
-type Book a  = [a]
-type Shelf a = [Book a]
-
-data QRoom a = QRoom { s1 :: Shelf a
-                     , s2 :: Shelf a
-                     , s3 :: Shelf a
-                     , s4 :: Shelf a
-                     } deriving (Eq, Ord, Functor)
-
--- these streams are always infinite, by construction
-newtype BookStream a = BookStream (NonEmpty a) deriving (Eq, Ord, Functor, Show)
-
-bookStream :: (RandomGen g, Ord a, Random a) => g -> Alphabet [a] -> BookStream a
-bookStream gen = BookStream . alphaStream gen
-
-
-genBook :: Int -> BookStream a -> (Book a, BookStream a)
-genBook len (BookStream s) = (h, t')
-  where (h, t) = NonEmpty.splitAt len s
-        t' = BookStream $ NonEmpty.fromList t
-
-iterState :: (s -> (a, s)) -> s -> [a]
-iterState f = unfoldr (Just . f)
-
-genBooks :: Int -> BookStream a -> [Book a]
-genBooks len str = iterState (genBook len) str
-
-
-genRoom :: (RandomGen g, Ord a, Random a) => Alphabet [a] -> (g -> QRoom a)
-genRoom alpha g = QRoom a b c d
-  where lineLen = 80
-        pageLen = 40
-        bookLen = 410
-        numBooks = 40
-        bookStr = bookStream g alpha
-        genShelves = unfoldr (Just . splitAt numBooks) $ genBooks (lineLen * pageLen * bookLen) bookStr
-        [a,b,c,d] = take 4 genShelves
+intGen :: Int -> StdGen
+intGen = mkStdGen
